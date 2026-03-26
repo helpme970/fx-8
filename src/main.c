@@ -1,3 +1,4 @@
+#include <gint/gint.h>
 #include <gint/display.h>
 #include <gint/keyboard.h>
 #include <stdint.h>
@@ -10,12 +11,25 @@
 
 // easier use of gint's bfile library
 #include "file2.h"
-// #include "menu.h"
-// #include "menu.c"
+#include "menu.h"
+#include "menu.c"
 
 #define START_ADDRESS 0x200
 #define FONTSET_SIZE 16*5
 #define FONTSET_START_ADDRESS 0x50
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+#ifndef SCALING
+#if (SCREEN_HEIGHT/32) == (SCREEN_WIDTH/64)
+#define SCALING SCREEN_HEIGHT/32
+#endif
+#endif
+
+#ifndef SIZE
+#define SIZE (SCREEN_HEIGHT*SCREEN_WIDTH) / (64*32)
+#endif
 
 // CHIP-8 hardware
 static uint8_t *memory = NULL;
@@ -49,15 +63,15 @@ void main() {
 	initChip8();
     loadROM("Breakout.ch8");
 
-	uint64_t speed =  (1 * 1000 * 1000) / 60;
+	uint64_t speed =  (1 * 1000 * 1000) / 250;
 
     uint8_t running = 1;
     key_event_t key;
 
-    // char romn[40];
-	// int chpos = 0;
-    // chpos = menu_filechooser("*.ch8","Choose ROM",(char*)&romn,chpos);
-    // if (chpos == -1) exit(1);
+//    char romn[40];
+//	int chpos = 0;
+//    chpos = menu _filechooser("*.ch8","Choose ROM",(char*)&romn,chpos);
+//    if (chpos == -1) exit(1);
 
     while (running) {
 		key = pollevent();
@@ -66,30 +80,42 @@ void main() {
             case KEYEV_DOWN:
             // case KEYEV_HOLD:
                 switch (key.key) {
+                    case KEY_EXIT:
+                        // running = 0;
+                        // break;
+                    /* Return-to-menu */
+                    case KEY_MENU:
+                        gint_osmenu();
+                        dupdate();
+                        break;
                     case KEY_0:
                         keyboard[0xA] = 1;
                         break;
                     case KEY_1:
                         keyboard[0x7] = 1;
                         break;
+                    case KEY_DOWN:
                     case KEY_2:
                         keyboard[0x8] = 1;
                         break;
                     case KEY_3:
                         keyboard[0x9] = 1;
                         break;
+                    case KEY_LEFT:
                     case KEY_4:
                         keyboard[0x4] = 1;
                         break;
                     case KEY_5:
                         keyboard[0x5] = 1;
                         break;
+                    case KEY_RIGHT:
                     case KEY_6:
                         keyboard[0x6] = 1;
                         break;
                     case KEY_7:
                         keyboard[0x1] = 1;
                         break;
+                    case KEY_UP:
                     case KEY_8:
                         keyboard[0x2] = 1;
                         break;
@@ -117,34 +143,34 @@ void main() {
                 break;
             case KEYEV_UP:
                 switch (key.key) {
-                    case KEY_EXE:
-                        running = 0;
-                        break;
-                        break;
                     case KEY_0:
                         keyboard[0xA] = 0;
                         break;
                     case KEY_1:
                         keyboard[0x7] = 0;
                         break;
+                    case KEY_DOWN:
                     case KEY_2:
                         keyboard[0x8] = 0;
                         break;
                     case KEY_3:
                         keyboard[0x9] = 0;
                         break;
+                    case KEY_LEFT:
                     case KEY_4:
                         keyboard[0x4] = 0;
                         break;
                     case KEY_5:
                         keyboard[0x5] = 0;
                         break;
+                    case KEY_RIGHT:
                     case KEY_6:
                         keyboard[0x6] = 0;
                         break;
                     case KEY_7:
                         keyboard[0x1] = 0;
                         break;
+                    case KEY_UP:
                     case KEY_8:
                         keyboard[0x2] = 0;
                         break;
@@ -244,10 +270,10 @@ inline void draw() {
     for (x = 0; x < 64; x++) {
         for (y = 0; y < 32; y++) {
             if (display[x + (y * 64)] == 1) {
-                dpixel(x*2, y*2, C_BLACK);
-                dpixel(x*2+1, y*2, C_BLACK);
-                dpixel(x*2, y*2+1, C_BLACK);
-                dpixel(x*2+1, y*2+1, C_BLACK);
+                dpixel(x*SCALING, y*SCALING, C_BLACK);
+                dpixel(x*SCALING+1, y*SCALING, C_BLACK);
+                dpixel(x*SCALING, y*SCALING+1, C_BLACK);
+                dpixel(x*SCALING+1, y*SCALING+1, C_BLACK);
             }
         }
     }
