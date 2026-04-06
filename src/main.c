@@ -16,54 +16,52 @@
 
 #define START_ADDRESS 0x200
 #define FONTSET_SIZE 16*5
-#define FONTSET_START_ADDRESS 0x50
+#define FONT_ADDR 0x200 - 80
+#define RAM_SIZE 4096-(0x200-80)
 
+// display specs
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 
+// integer scaling value
 #ifndef SCALING
 #if (SCREEN_HEIGHT/32) == (SCREEN_WIDTH/64)
 #define SCALING SCREEN_HEIGHT/32
 #endif
 #endif
 
+// how much pixel is 1 upscaled pixel
 #ifndef SIZE
 #define SIZE (SCREEN_HEIGHT*SCREEN_WIDTH) / (64*32)
 #endif
 
 // CHIP-8 hardware
 static uint8_t *memory = NULL;
-uint8_t  display[64 * 32];
+// uint8_t  display[(64 * 32) / 8];
 uint8_t  V[16];  // Registers
 uint16_t I;
 uint16_t pc;
 uint8_t delayTimer;
-uint8_t soundTimer;
+// uint8_t soundTimer; // not needed because the calc doesn't have any audio device
 uint16_t stack[16];
 uint16_t sp;
 uint8_t  keyboard[16];
 uint16_t opcode;
-uint8_t  drawFlag;
+// uint8_t  drawFlag;
 
-// functions
+// initialize functions
 void initChip8();
+void resetChip8();
 void loadROM(const char* filename);
 void draw();
 void execute();
 void print(char* text);
 
 void main() {
-    dclear(C_WHITE);
-	memory = calloc(4096, sizeof(uint8_t));
-	if (memory == NULL) {
-		print("Error");
-        exit(1);
-	}
-
 	initChip8();
     loadROM("Breakout.ch8");
 
-	uint64_t speed =  (1 * 1000 * 1000) / 250;
+	uint64_t speed =  (1 * 1000 * 1000) / 250; // delay in herz
 
     uint8_t running = 1;
     key_event_t key;
@@ -82,7 +80,8 @@ void main() {
                 switch (key.key) {
                     case KEY_EXIT:
                         // running = 0;
-                        // break;
+                        resetChip8();
+                        break;
                     /* Return-to-menu */
                     case KEY_MENU:
                         gint_osmenu();
@@ -208,15 +207,22 @@ void main() {
         }
 
         execute();
-        if(drawFlag) {
-            draw();
-            drawFlag = 0;
-        }
+
+        // if(drawFlag) {
+        //     draw();
+        //     drawFlag = 0;
+        // }
 	}
 	free(memory);
 }
 
 inline void initChip8() {
+    memory = calloc(RAM_SIZE, sizeof(uint8_t));
+	if (memory == NULL) {
+		print("Error");
+        exit(1);
+	}
+
 	const uint8_t fonts[FONTSET_SIZE] = {
 		0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
 		0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -235,16 +241,21 @@ inline void initChip8() {
 		0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
 		0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 	};
-    memset(display, 0, 64 * 32);
+    memcpy(memory + 0x50, fonts, 80 * sizeof(uint8_t));
+    resetChip8();   
+}
+
+inline void resetChip8() {
+    dclear(C_WHITE);
+    // memset(display, 0, (64 * 32) / 8);
     memset(V, 0, 16);
     I = 0;
     pc = START_ADDRESS;
     delayTimer = 0;
-    soundTimer = 0;
+    // soundTimer = 0;
     memset(stack, 0, 16);
     sp = 0;
     memset(keyboard, 0, 16);
-    memcpy(memory + FONTSET_START_ADDRESS, fonts, 80 * sizeof(uint8_t));
 }
 
 inline void loadROM(const char* filepath) {
@@ -256,6 +267,15 @@ inline void loadROM(const char* filepath) {
     }
 
     int size = BFile_Size(infile);
+    if (size > RAM_SIZE) {
+        print("ROM is too large for memory.");
+        exit(1);
+    }
+
+    if (size > (RAM_SIZE - 0x200)) {
+        print("program must be splitted");
+        exit(1);
+    }
 
     BFile_Read(infile, memory + 0x200, size, -1);
     
@@ -263,29 +283,45 @@ inline void loadROM(const char* filepath) {
     }
 }
 
-inline void draw() {
-    int x, y;
+// inline void draw() {
+    // int x, y, i;
 
-    dclear(C_WHITE);
-    for (x = 0; x < 64; x++) {
-        for (y = 0; y < 32; y++) {
-            if (display[x + (y * 64)] == 1) {
-                dpixel(x*SCALING, y*SCALING, C_BLACK);
-                dpixel(x*SCALING+1, y*SCALING, C_BLACK);
-                dpixel(x*SCALING, y*SCALING+1, C_BLACK);
-                dpixel(x*SCALING+1, y*SCALING+1, C_BLACK);
-            }
-        }
-    }
-    dupdate();
-}
+    // dclear(C_WHITE);
+
+    // for (x = 0; x < 64 / 8; x++) {
+    //     for (y = 0; y < 32; y++) {
+    //         for (i = 0; i < 8; i++) {
+    //             if (((display[x + (y * (64/8))] >> i) & 0x000F) == 1) {
+    //                 dpixel((x*8)*SCALING, y*SCALING, C_BLACK);
+    //                 dpixel((x*8)*SCALING+1, y*SCALING, C_BLACK);
+    //                 dpixel((x*8)*SCALING, y*SCALING+1, C_BLACK);
+    //                 dpixel((x*8)*SCALING+1, y*SCALING+1, C_BLACK);
+    //             }
+    //         }
+    //     }
+    // }
+
+    // for (x = 0; x < 64; x++) {
+    //     for (y = 0; y < 32; y++) {
+    //         // Überprüfe, ob das Pixel gesetzt ist (bitweise Überprüfung)
+    //         if (display[(x + (y * 64)) / 8] & (0x80 >> (x % 8))) {
+    //             // Zeichne das Pixel als 2x2 Block (Upscaling auf 128x64)
+    //             dpixel(x * 2, y * 2, C_BLACK);
+    //             dpixel(x * 2 + 1, y * 2, C_BLACK);
+    //             dpixel(x * 2, y * 2 + 1, C_BLACK);
+    //             dpixel(x * 2 + 1, y * 2 + 1, C_BLACK);
+    //         }
+    //     }
+    // }
+//     dupdate();
+// }
 
 inline void execute() {
     uint8_t  X, Y, kk, n;
     uint16_t nnn;
 
     // Fetch
-    opcode = memory[pc] << 8 | memory[pc + 1];
+    opcode = memory[pc] << 8 | memory[(pc + 1)];
     pc += 2;
 
     // Decoding
@@ -302,15 +338,14 @@ inline void execute() {
     // printf("Program Counter: %x\n", pc);
     // printf("I: %x\n", I);
 
-    switch (opcode & 0xF000)
-    {
+    switch (opcode & 0xF000) {
         case 0x0000:
-            switch (opcode & 0x00FF)
-            {
+            switch (opcode & 0x00FF) {
                 // 00E0
                 case 0x00E0:
-                    memset(display, 0, 64 * 32);
-                    drawFlag = 1;
+                    // memset(display, 0, 64 * 32);
+                    dclear(C_WHITE);
+                    // drawFlag = 1;
                     break;
                 // 00EE
                 case 0x00EE:
@@ -318,7 +353,9 @@ inline void execute() {
                     pc = stack[sp];
                     break;
                 default:
-                    printf("Error executing opcode %x\n", opcode);
+                    print("Error: Opcode 0NNN");
+                    getkey();
+                    // printf("Error executing opcode %x\n", opcode);
                     break;
             }
             break;
@@ -339,7 +376,7 @@ inline void execute() {
                 pc += 2;
             }
             break;
-        // $XNN
+        // 4XNN
         case 0x4000:
             if (V[X] != kk)
             {
@@ -462,17 +499,48 @@ inline void execute() {
 
             V[0xF] = 0;
             for (int i = 0; i < n; i++) {
-                pixel = memory[I + i];
+                pixel = memory[(I + i)];
                 for (int j = 0; j < 8; j++) {
                     if ((pixel & (0x80 >> j)) != 0) {
-                        if (display[(x + j) + ((y + i) * 64)] == 1) {
+                        // if (display[(x + j) + ((y + i) * 64)] == 1) {
+                        //     V[0xF] = 1;
+                        // }
+                        // display[(x + j) + ((y + i) * 64)] ^= 1;
+
+                        // Final code
+                        // if (dgetpixel((x+j) * 2, (y+i) * 2) == C_BLACK) {
+                        //     V[0xF] = 1;
+                        // }
+                        // drect((x + j) * 2, (y + i) * 2, (x + j) * 2 + 1, (y + i) * 2 + 1, C_INVERT);
+
+                        // replaced *2 with <<2 beacuse of efficiency
+                        if (dgetpixel((x+j) << 1, (y+i) << 1) == C_BLACK) {
                             V[0xF] = 1;
                         }
-                        display[(x + j) + ((y + i) * 64)] ^= 1;
+                        drect((x + j) << 1, (y + i) << 1, ((x + j) << 1) + 1, ((y + i) << 1) + 1, C_INVERT);
+
+
+                        // int px = (x + j) % 64;
+                        // int py = (y + i) % 32;
+
+                        // int index = px + (py * 64);
+                        // int byteIndex = index / 8;
+                        // int bitIndex  = 7 - (index % 8);
+
+                        // uint8_t mask = 1 << bitIndex;
+
+                        // // Prüfe Kollision
+                        // if (display[byteIndex] & mask) {
+                        //     V[0xF] = 1;
+                        // }
+
+                        // XOR Pixel
+                        // display[byteIndex] ^= mask;
                     }
                 }
             }
-            drawFlag = 1;
+            dupdate();
+            // drawFlag = 1;
             break;
         case 0xE000:
             switch (kk)
@@ -526,7 +594,7 @@ inline void execute() {
                     break;
                 // FX18
                 case 0x0018:
-                    soundTimer = V[X];
+                    // soundTimer = V[X];
                     break;
                 // FX1E
                 case 0x001E:
@@ -534,30 +602,30 @@ inline void execute() {
                     break;
                 // FX29
                 case 0x0029:
-                    I = V[X] * 5;
+                    I = FONT_ADDR + V[X] * 5;
                     break;
                 // FX33
                 case 0x0033:
                     int vx;
                     vx = V[X];
-                    memory[I] = (vx - (vx % 100)) / 100;
-                    vx -= memory[I] * 100;
-                    memory[I + 1] = (vx - (vx % 10)) / 10;
-                    vx -= memory[I + 1] * 10;
-                    memory[I + 2] = vx;
+                    memory[(I + 2)] = vx % 10;
+                    vx /= 10;
+                    memory[(I + 1)] = vx % 10;
+                    vx /= 10;
+                    memory[(I)] = vx % 10;;
                     break;
                 // FX55
                 case 0x0055:
                     for (uint8_t i = 0; i <= X; i++)
                     {
-                        memory[I + i] = V[i];
+                        memory[(I + i)] = V[i];
                     }
                     break;
                 // FX65
                 case 0x0065:
                     for (uint8_t i = 0; i <= X; i++)
                     {
-                        V[i] = memory[I + i];
+                        V[i] = memory[(I + i)];
                     }
                     break;
                 default:
