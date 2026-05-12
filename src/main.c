@@ -5,8 +5,8 @@
 #include <gint/std/stdio.h>
 #include <gint/std/stdlib.h>
 #include <gint/std/string.h>
-// #include <gint/rtc.h>
-#include <gint/timer.h>
+#include <gint/rtc.h>
+// #include <gint/timer.h>
 #include <gint/clock.h>
 
 // easier use of gint's bfile library
@@ -57,14 +57,22 @@ void draw();
 void execute();
 void print(char* text);
 
+int fps = 0; // shows how many ticks are needed for one fps
+// int fps_counter = 0;
+
 void main() {
 	initChip8();
     loadROM("Breakout.ch8");
 
-	uint64_t speed =  (1 * 1000 * 1000) / 250; // delay in herz
+	// uint64_t speed =  (1 * 1000 * 1000) / 250; // delay in herz
+    uint64_t speed = 0; // no delay to correctly count fps
 
     uint8_t running = 1;
     key_event_t key;
+
+    uint32_t time_old;
+    uint32_t time_new;
+
 
 //    char romn[40];
 //	int chpos = 0;
@@ -72,6 +80,7 @@ void main() {
 //    if (chpos == -1) exit(1);
 
     while (running) {
+        time_old = rtc_ticks();
 		key = pollevent();
 
         switch (key.type) {
@@ -207,6 +216,9 @@ void main() {
         }
 
         execute();
+
+        time_new = rtc_ticks();
+        fps = 128 / ((time_new - time_old) + 1);
 
         // if(drawFlag) {
         //     draw();
@@ -519,6 +531,9 @@ inline void execute() {
                         }
                         drect((x + j) << 1, (y + i) << 1, ((x + j) << 1) + 1, ((y + i) << 1) + 1, C_INVERT);
 
+                        // show fps counter
+                        drect(0, 0, 12, 12,C_BLACK);
+                        dprint(0, 0, C_WHITE, "%d", fps);
 
                         // int px = (x + j) % 64;
                         // int py = (y + i) % 32;
