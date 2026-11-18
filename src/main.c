@@ -5,14 +5,14 @@
 #include <gint/std/stdio.h>
 #include <gint/std/stdlib.h>
 #include <gint/std/string.h>
-#include <gint/rtc.h>
-// #include <gint/timer.h>
+// #include <gint/rtc.h>
+#include <gint/timer.h>
 #include <gint/clock.h>
 
 // easier use of gint's bfile library
 #include "file2.h"
-#include "menu.h"
-#include "menu.c"
+// #include "menu.h"
+// #include "menu.c"
 
 #define START_ADDRESS 0x200
 #define FONTSET_SIZE 16*5
@@ -53,26 +53,18 @@ uint16_t opcode;
 void initChip8();
 void resetChip8();
 void loadROM(const char* filename);
-void draw();
+// void draw();
 void execute();
 void print(char* text);
-
-int fps = 0; // shows how many ticks are needed for one fps
-// int fps_counter = 0;
 
 void main() {
 	initChip8();
     loadROM("Breakout.ch8");
 
-	// uint64_t speed =  (1 * 1000 * 1000) / 250; // delay in herz
-    uint64_t speed = 0; // no delay to correctly count fps
+	uint64_t speed =  (1 * 1000 * 1000) / 250; // delay in herz
 
     uint8_t running = 1;
     key_event_t key;
-
-    uint32_t time_old;
-    uint32_t time_new;
-
 
 //    char romn[40];
 //	int chpos = 0;
@@ -80,7 +72,6 @@ void main() {
 //    if (chpos == -1) exit(1);
 
     while (running) {
-        time_old = rtc_ticks();
 		key = pollevent();
 
         switch (key.type) {
@@ -217,9 +208,6 @@ void main() {
 
         execute();
 
-        time_new = rtc_ticks();
-        fps = 128 / ((time_new - time_old) + 1);
-
         // if(drawFlag) {
         //     draw();
         //     drawFlag = 0;
@@ -254,7 +242,7 @@ inline void initChip8() {
 		0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 	};
     memcpy(memory + 0x50, fonts, 80 * sizeof(uint8_t));
-    resetChip8();   
+    resetChip8();
 }
 
 inline void resetChip8() {
@@ -333,7 +321,7 @@ inline void execute() {
     uint16_t nnn;
 
     // Fetch
-    opcode = memory[pc] << 8 | memory[(pc + 1)];
+    opcode = memory[pc % RAM_SIZE] << 8 | memory[(pc + 1) % RAM_SIZE];
     pc += 2;
 
     // Decoding
@@ -346,9 +334,9 @@ inline void execute() {
     // char text[4];
     // sprintf(text, "%x", opcode);
     // print(text);
-    // print("Opcode: %x\n", opcode);
-    // printf("Program Counter: %x\n", pc);
-    // printf("I: %x\n", I);
+    // print("Opcode: %x", opcode);
+    // printf("Program Counter: %x", pc);
+    // printf("I: %x", I);
 
     switch (opcode & 0xF000) {
         case 0x0000:
@@ -367,7 +355,7 @@ inline void execute() {
                 default:
                     print("Error: Opcode 0NNN");
                     getkey();
-                    // printf("Error executing opcode %x\n", opcode);
+                    // printf("Error executing opcode %x", opcode);
                     break;
             }
             break;
@@ -481,7 +469,7 @@ inline void execute() {
                     V[X] <<= 1;
                     break;
                 default:
-                    printf("Error executing opcode %x\n", opcode);
+                    printf("0x8 Error executing opcode %x", opcode);
                     break;
             }
             break;
@@ -511,7 +499,7 @@ inline void execute() {
 
             V[0xF] = 0;
             for (int i = 0; i < n; i++) {
-                pixel = memory[(I + i)];
+                pixel = memory[(I + i) % RAM_SIZE];
                 for (int j = 0; j < 8; j++) {
                     if ((pixel & (0x80 >> j)) != 0) {
                         // if (display[(x + j) + ((y + i) * 64)] == 1) {
@@ -525,15 +513,12 @@ inline void execute() {
                         // }
                         // drect((x + j) * 2, (y + i) * 2, (x + j) * 2 + 1, (y + i) * 2 + 1, C_INVERT);
 
-                        // replaced *2 with <<2 beacuse of efficiency
+                        // replaced *2 with <<1 beacuse of efficiency
                         if (dgetpixel((x+j) << 1, (y+i) << 1) == C_BLACK) {
                             V[0xF] = 1;
                         }
                         drect((x + j) << 1, (y + i) << 1, ((x + j) << 1) + 1, ((y + i) << 1) + 1, C_INVERT);
 
-                        // show fps counter
-                        drect(0, 0, 12, 12,C_BLACK);
-                        dprint(0, 0, C_WHITE, "%d", fps);
 
                         // int px = (x + j) % 64;
                         // int py = (y + i) % 32;
@@ -575,7 +560,7 @@ inline void execute() {
                     }
                     break;
                 default:
-                    printf("Error executing opcode %x\n", opcode);
+                    printf("0xD Error executing opcode %x", opcode);
                     break;
             }
             break;
@@ -623,29 +608,29 @@ inline void execute() {
                 case 0x0033:
                     int vx;
                     vx = V[X];
-                    memory[(I + 2)] = vx % 10;
+                    memory[(I + 2) % RAM_SIZE] = vx % 10;
                     vx /= 10;
-                    memory[(I + 1)] = vx % 10;
+                    memory[(I + 1) % RAM_SIZE] = vx % 10;
                     vx /= 10;
-                    memory[(I)] = vx % 10;;
+                    memory[(I + 0) % RAM_SIZE] = vx % 10;;
                     break;
                 // FX55
                 case 0x0055:
                     for (uint8_t i = 0; i <= X; i++)
                     {
-                        memory[(I + i)] = V[i];
+                        memory[(I + i) % RAM_SIZE] = V[i];
                     }
                     break;
                 // FX65
                 case 0x0065:
                     for (uint8_t i = 0; i <= X; i++)
                     {
-                        V[i] = memory[(I + i)];
+                        V[i] = memory[(I + i) % RAM_SIZE];
                     }
                     break;
                 default:
                     char text[29];
-                    sprintf(text, "Error executing opcode %x\n", opcode);
+                    sprintf(text, "0xF Error executing opcode %x", opcode);
                     print(text);
                     getkey();
                     exit(1);
@@ -653,13 +638,35 @@ inline void execute() {
             }
             break;
         default:
-            printf("Error executing opcode %x\n", opcode);
+            printf("Error executing opcode %x", opcode);
             break;
     }
 }
 
 void print(char* text) {
-	dclear(C_WHITE);
-	dtext(1, 1, C_BLACK, text);
-	dupdate();
+    int i=0;
+    while (text[i] != '\0') {
+        i++;
+    }
+
+    char textparts[(i/21)+1][22];
+    for (int l=0; l<i; l++) {
+        textparts[l/21][l%21] = text[l];
+        textparts[l/21][21] = '\0';
+        // if (l/21 > (l-1)/21) {
+        //     textparts[(l-1)/21][22] = '\0';
+        // }
+    }
+
+    dclear(C_WHITE);
+
+    for (int l=0; l<(i/21)+1; l++) {
+        dtext(1, 1+(l*8), C_BLACK, textparts[l]);
+    }
+
+
+    // char text2[29];
+    // sprintf(text2, "%d", i);
+    // dtext(1, 7+2, C_BLACK, text2);
+    dupdate();
 }
