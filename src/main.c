@@ -14,10 +14,15 @@
 // #include "menu.h"
 // #include "menu.c"
 
+// debugging
+// #include <assert.h>
+
 #define START_ADDRESS 0x200
 #define FONTSET_SIZE 16*5
 #define FONT_ADDR 0x200 - 80
-#define RAM_SIZE 4096-(0x200-80)
+
+// 4kb ram; ox200 bytes reserved for interpreter and font, font is stored but space for interpreter is removede as it is not needed
+#define RAM_SIZE (4096-(0x200-80)) // =3664 // dont remove outer () because this will resault in wrong calculations such as: pc % RAM_SIZE = 514 % 4096- (0x200 - 80)
 
 // display specs
 #define SCREEN_WIDTH 128
@@ -241,7 +246,7 @@ inline void initChip8() {
 		0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
 		0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 	};
-    memcpy(memory + 0x50, fonts, 80 * sizeof(uint8_t));
+    memcpy(memory + FONT_ADDR, fonts, 80 * sizeof(uint8_t));
     resetChip8();
 }
 
@@ -321,7 +326,7 @@ inline void execute() {
     uint16_t nnn;
 
     // Fetch
-    opcode = memory[pc % RAM_SIZE] << 8 | memory[(pc + 1) % RAM_SIZE];
+    opcode = memory[pc % RAM_SIZE] << 8 | memory[(pc + 1) % RAM_SIZE]; // Read 2 bytes into opcode
     pc += 2;
 
     // Decoding
@@ -353,7 +358,9 @@ inline void execute() {
                     pc = stack[sp];
                     break;
                 default:
-                    print("Error: Opcode 0NNN");
+                    char text[100];
+                    sprintf(text, "Error: Opcode 0NNN %x", opcode);
+                    print(text)
                     getkey();
                     // printf("Error executing opcode %x", opcode);
                     break;
@@ -648,6 +655,7 @@ void print(char* text) {
     while (text[i] != '\0') {
         i++;
     }
+    i++; // für \0 mitzählen
 
     char textparts[(i/21)+1][22];
     for (int l=0; l<i; l++) {
